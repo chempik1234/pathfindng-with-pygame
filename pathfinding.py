@@ -1,33 +1,28 @@
 import pygame, sys, json
+
+
+def load_settings(path):
+    with open(path, "r") as f:
+        dict = json.load(f)
+        global COLORS, WORLD_HEIGHT, WORLD_WIDTH, DAMAP, WIDTH, HEIGHT, FPS
+        COLORS, WORLD_HEIGHT, WORLD_WIDTH, WIDTH, HEIGHT, FPS = dict["COLORS"], dict["WORLD HEIGHT"],\
+                                                                dict["WORLD WIDTH"],\
+                                                                dict["WIDTH"], dict["HEIGHT"], dict["FPS"]
+
+
 WORLD_WIDTH, WORLD_HEIGHT = 0, 0
 COLORS = []
 WIDTH = 1000
 HEIGHT = 1000
-screen_size = (WIDTH, HEIGHT)
 FPS = 50
+load_settings("settings.json")
+
+screen_size = (WIDTH, HEIGHT)
 tile_width = tile_height = 50
 pygame.init()
 screen = pygame.display.set_mode(screen_size)
 pygame.display.set_caption('Pathfinding')
 clock = pygame.time.Clock()
-
-
-def click_rect(xy, xywh):
-    x, y = xy
-    x1, y1, w, h = xywh
-    return 0 <= x - x1 <= w and 0 <= y - y1 <= h
-
-
-def terminate():
-    pygame.quit()
-    sys.exit()
-
-
-def last_level(paths):
-    for root in paths:
-        a = root
-        while isinstance(a[-1], list) or isinstance(a[-1], tuple):
-            a = a[-1]
 
 
 class World:
@@ -108,6 +103,9 @@ class World:
                     sus.append(res)
                 if (y2, x2) in last_points:
                     break
+            if not sus:
+                self.unvisit_all()
+                return
             paths.append(sus)
         needed_point, final_res, breaksss, nex_gen = (y2, x2), [], False, False
         for lists_of_children_of_points in paths[-1::-1]:
@@ -137,36 +135,17 @@ class World:
                 self[y][x][1] = False
 
 
-def empty_damap(w, h):
+def empty_map(w, h):
     return [[0 for _ in range(w)] for _ in range(h)]
 
 
-def path(damap):
-    # damap = [[0 for _ in range(WORLD_WIDTH)] for _ in range(WORLD_HEIGHT)]
-    world = World(world=damap)
-    print("start", world.find_unique_num(2), "end", world.find_unique_num(3))
-    return world.path(*world.find_unique_num(2), *world.find_unique_num(3))
-    # for point in path:
-    #     if not isinstance(point, list) and not isinstance(point, tuple):
-    #         break
-    #     damap[point[0]][point[1]] = 5
-    # for i in damap:
-    #     print(i)
-
-
-def load_settings(path):
-    with open(path, "r") as f:
-        dict = json.load(f)
-        global COLORS, WORLD_HEIGHT, WORLD_WIDTH, DAMAP
-        COLORS, WORLD_HEIGHT, WORLD_WIDTH = dict["COLORS"], dict["WORLD HEIGHT"], dict["WORLD WIDTH"]
-
-
 class Board:
-    def __init__(self, world=World(empty_damap(10, 10))):
+    def __init__(self, world=World(empty_map(10, 10))):
         if not isinstance(world, World):
             world = World(world)
         self.world = world
         self.path = []
+        self.clicked_cell = None
         self.running = False
 
     def draw(self):
@@ -180,34 +159,58 @@ class Board:
 
     def run(self):
         self.running = True
+        self.draw()
+        mouse_button_that_is_currently_being_held = None
         while self.running:
-            self.draw()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
                 if event.type == pygame.MOUSEBUTTONDOWN:
-                    clicked_cell = self.get_cell_click(event.pos)
-                    if event.button == 1:
-                        if self.world.get_cell(clicked_cell)[0] != 0:
-                            self.world.set_cell(clicked_cell, 0)
-                        else:
-                            self.world.set_cell(clicked_cell, 1)
-                    elif event.button == 3:
-                        if self.world.find_unique_num(2) and not self.world.find_unique_num(3):
-                            self.world.set_cell(clicked_cell, 3)
-                        elif not self.world.find_unique_num(2):
-                            self.world.set_cell(clicked_cell, 2)
+                    mouse_button_that_is_currently_being_held = event.button
+                    self.clicked_cell = None
+                    self.cell_clicking_handler(event.pos, mouse_button_that_is_currently_being_held)
+                if event.type == pygame.MOUSEBUTTONUP:
+                    mouse_button_that_is_currently_being_held = None
+                    self.clicked_cell = None
+                if event.type == pygame.MOUSEMOTION and mouse_button_that_is_currently_being_held:
+                    self.cell_clicking_handler(event.pos, mouse_button_that_is_currently_being_held)
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                    if not self.path and self.world.find_unique_num(2) and self.world.find_unique_num(3):
-                        self.path = self.world.path(*self.world.find_unique_num(2), *self.world.find_unique_num(3))[-1::-1]
+                    self.make_path()
+                    self.draw()
             if self.path:
                 self.world.set_cell(self.world.find_unique_num(2), 0)
                 self.world.set_cell(self.path[0], 2)
+                self.draw()
                 if len(self.path) >= 1:
                     self.path = self.path[1:]
                 else:
                     self.path = []
             clock.tick(FPS)
+
+    def cell_clicking_handler(self, pos, btn):
+        if self.get_cell_click(pos) != self.clicked_cell:
+            self.clicked_cell = self.get_cell_click(pos)
+            if btn == 1:
+                if self.world.get_cell(self.clicked_cell)[0] != 0:
+                    self.world.set_cell(self.clicked_cell, 0)
+                else:
+                    self.world.set_cell(self.clicked_cell, 1)
+            elif btn == 3:
+                if self.world.find_unique_num(2) and not self.world.find_unique_num(3):
+                    self.world.set_cell(self.clicked_cell, 3)
+                elif not self.world.find_unique_num(2):
+                    self.world.set_cell(self.clicked_cell, 2)
+            if self.path and btn:
+                self.make_path()
+            self.draw()
+
+    def make_path(self):
+        if self.world.find_unique_num(2) and self.world.find_unique_num(3):
+            path = self.world.path(*self.world.find_unique_num(2), *self.world.find_unique_num(3))
+            if path:
+                self.path = path[-1::-1]
+            else:
+                self.path = []
 
     def get_cell_click(self, pos):
         x_0_1, y_0_1 = pos[0] / WIDTH, pos[1] / HEIGHT
@@ -215,7 +218,6 @@ class Board:
         return int(cell_y), int(cell_x)
 
 
-load_settings("settings.json")
-damap = empty_damap(WORLD_WIDTH, WORLD_HEIGHT)
-b = Board(damap)
+the_map = empty_map(WORLD_WIDTH, WORLD_HEIGHT)
+b = Board(the_map)
 b.run()

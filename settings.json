@@ -5,6 +5,9 @@
     "2": [255, 255, 0],
     "3": [0, 255, 50]
   },
-  "WORLD HEIGHT": 20,
-  "WORLD WIDTH": 20
+  "WORLD HEIGHT": 30,
+  "WORLD WIDTH": 30,
+  "WIDTH": 1020,
+  "HEIGHT": 1020,
+  "FPS": 30
 }

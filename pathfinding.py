@@ -185,6 +185,8 @@ class Board:
                     self.path = self.path[1:]
                 else:
                     self.path = []
+            elif self.path:
+                self.path = []
             clock.tick(FPS)
 
     def cell_clicking_handler(self, pos, btn):

@@ -38,7 +38,7 @@ class World:
 
     def ys_from_coords(self, coords):
         y, x = coords
-        y, x = max(0, min(len(self), y)), max(0, min(len(self[0]), x))
+        y, x = max(0, min(len(self) - 1, y)), max(0, min(len(self[0]) - 1, x))
         return y, x
 
     def set_cell(self, coords, value):
@@ -177,7 +177,7 @@ class Board:
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                     self.make_path()
                     self.draw()
-            if self.path:
+            if self.path and self.world.find_unique_num(2):
                 self.world.set_cell(self.world.find_unique_num(2), 0)
                 self.world.set_cell(self.path[0], 2)
                 self.draw()
